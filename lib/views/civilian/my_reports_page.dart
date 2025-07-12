@@ -1,8 +1,10 @@
 // views/civilian/my_reports_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:io';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
+import 'report_issue_page.dart'; // Import to access ReportManager
 
 class MyReportsPage extends StatefulWidget {
   const MyReportsPage({Key? key}) : super(key: key);
@@ -13,8 +15,10 @@ class MyReportsPage extends StatefulWidget {
 
 class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  List<Map<String, dynamic>> _allReports = [];
 
-  final List<Map<String, dynamic>> _reports = [
+  // Sample default reports (you can remove these if you want only user-submitted reports)
+  final List<Map<String, dynamic>> _defaultReports = [
     {
       'id': '#UR001',
       'title': 'Pothole on MG Road',
@@ -27,6 +31,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
       'description': 'Large pothole causing traffic issues',
       'assignedTo': 'Municipal Corporation',
       'estimatedTime': '3-5 days',
+      'submittedAt': DateTime.now().subtract(Duration(hours: 2)).toIso8601String(),
     },
     {
       'id': '#UR002',
@@ -40,19 +45,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
       'description': 'Garbage bin overflowing on street corner',
       'assignedTo': 'CleanMax NGO',
       'estimatedTime': 'Completed',
-    },
-    {
-      'id': '#UR003',
-      'title': 'Broken Street Light',
-      'category': 'Infrastructure',
-      'location': 'Civil Lines, Bhopal',
-      'date': '3 days ago',
-      'status': 'Under Review',
-      'statusColor': AppColors.info,
-      'priority': 'Low',
-      'description': 'Street light not working for past week',
-      'assignedTo': 'Electrical Department',
-      'estimatedTime': '7-10 days',
+      'submittedAt': DateTime.now().subtract(Duration(days: 1)).toIso8601String(),
     },
   ];
 
@@ -60,6 +53,23 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _loadReports();
+  }
+
+  void _loadReports() {
+    setState(() {
+      // Combine default reports with user-submitted reports
+      _allReports = [
+        ...ReportManager.getReports(),
+        ..._defaultReports,
+      ];
+      // Sort by submission time (newest first)
+      _allReports.sort((a, b) {
+        DateTime timeA = DateTime.parse(a['submittedAt'] ?? DateTime.now().toIso8601String());
+        DateTime timeB = DateTime.parse(b['submittedAt'] ?? DateTime.now().toIso8601String());
+        return timeB.compareTo(timeA);
+      });
+    });
   }
 
   @override
@@ -68,17 +78,64 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
     super.dispose();
   }
 
+  String _getTimeAgo(String? dateString) {
+    if (dateString == null) return 'Unknown';
+
+    try {
+      DateTime submittedTime = DateTime.parse(dateString);
+      Duration difference = DateTime.now().difference(submittedTime);
+
+      if (difference.inMinutes < 1) {
+        return 'Just now';
+      } else if (difference.inMinutes < 60) {
+        return '${difference.inMinutes} minutes ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours} hours ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else {
+        return '${(difference.inDays / 7).floor()} weeks ago';
+      }
+    } catch (e) {
+      return dateString;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('My Reports'),
+        title: Text(
+          'My Reports',
+          style: AppTextStyles.heading2.copyWith(color: AppColors.textPrimary),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () {
+              _loadReports();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Reports refreshed'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -88,11 +145,11 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
           labelStyle: AppTextStyles.bodyMedium.copyWith(
             fontWeight: FontWeight.w600,
           ),
-          tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'In Progress'),
-            Tab(text: 'Resolved'),
-            Tab(text: 'Under Review'),
+          tabs: [
+            Tab(text: 'All (${_allReports.length})'),
+            Tab(text: 'In Progress (${_allReports.where((r) => r['status'] == 'In Progress' || r['status'] == 'Submitted').length})'),
+            Tab(text: 'Resolved (${_allReports.where((r) => r['status'] == 'Resolved').length})'),
+            Tab(text: 'Under Review (${_allReports.where((r) => r['status'] == 'Under Review').length})'),
           ],
         ),
       ),
@@ -103,11 +160,34 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
         child: TabBarView(
           controller: _tabController,
           children: [
-            _buildReportsList(_reports),
-            _buildReportsList(_reports.where((r) => r['status'] == 'In Progress').toList()),
-            _buildReportsList(_reports.where((r) => r['status'] == 'Resolved').toList()),
-            _buildReportsList(_reports.where((r) => r['status'] == 'Under Review').toList()),
+            _buildReportsList(_allReports),
+            _buildReportsList(_allReports.where((r) => r['status'] == 'In Progress' || r['status'] == 'Submitted').toList()),
+            _buildReportsList(_allReports.where((r) => r['status'] == 'Resolved').toList()),
+            _buildReportsList(_allReports.where((r) => r['status'] == 'Under Review').toList()),
           ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReportIssuePage(),
+            ),
+          );
+          // Refresh reports if a new report was submitted
+          if (result == true) {
+            _loadReports();
+          }
+        },
+        backgroundColor: AppColors.primary,
+        icon: const Icon(
+          Icons.add_a_photo_rounded,
+          color: Colors.white,
+        ),
+        label: Text(
+          'New Report',
+          style: AppTextStyles.button.copyWith(fontSize: 14),
         ),
       ),
     );
@@ -128,6 +208,13 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
             Text(
               'No reports found',
               style: AppTextStyles.subtitle1.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create your first report to get started',
+              style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textTertiary,
               ),
             ),
@@ -136,25 +223,42 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: reports.length,
-      itemBuilder: (context, index) {
-        final report = reports[index];
-        return _buildReportCard(report, index);
+    return RefreshIndicator(
+      onRefresh: () async {
+        _loadReports();
       },
+      child: ListView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: reports.length,
+        itemBuilder: (context, index) {
+          final report = Map<String, dynamic>.from(reports[index]);
+          // Update the date field with calculated time ago
+          report['date'] = _getTimeAgo(report['submittedAt']);
+          return _buildReportCard(report, index);
+        },
+      ),
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> report, int index) {
+    final bool isNewReport = report['status'] == 'Submitted';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isNewReport
+              ? AppColors.primary.withOpacity(0.5)
+              : AppColors.primary.withOpacity(0.2),
+          width: isNewReport ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: isNewReport
+                ? AppColors.primary.withOpacity(0.2)
+                : Colors.black.withOpacity(0.15),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -175,17 +279,35 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: report['statusColor'].withOpacity(0.1),
+                        color: (report['statusColor'] as Color).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         report['status'],
                         style: AppTextStyles.caption.copyWith(
-                          color: report['statusColor'],
+                          color: report['statusColor'] as Color,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
+                    if (isNewReport) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'NEW',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     Text(
                       report['id'],
@@ -217,7 +339,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                       child: Text(
                         report['location'],
                         style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textTertiary,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ),
@@ -231,7 +353,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     Text(
                       report['date'],
                       style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textTertiary,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -242,13 +364,13 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
+                        color: AppColors.primary.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         report['category'],
                         style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -257,7 +379,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getPriorityColor(report['priority']).withOpacity(0.1),
+                        color: _getPriorityColor(report['priority']).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -270,6 +392,40 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     ),
                   ],
                 ),
+
+                // Show image preview if available
+                if (report['imagePath'] != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 100,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.surfaceVariant,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: File(report['imagePath']).existsSync()
+                          ? Image.file(
+                        File(report['imagePath']),
+                        fit: BoxFit.cover,
+                      )
+                          : Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: AppColors.textTertiary,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -297,6 +453,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -307,6 +464,14 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
           minChildSize: 0.5,
           builder: (context, scrollController) {
             return Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
                 controller: scrollController,
@@ -319,7 +484,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: AppColors.textTertiary.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -340,13 +505,13 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: report['statusColor'].withOpacity(0.1),
+                            color: (report['statusColor'] as Color).withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             report['status'],
                             style: AppTextStyles.caption.copyWith(
-                              color: report['statusColor'],
+                              color: report['statusColor'] as Color,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -363,6 +528,52 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                       ),
                     ),
 
+                    // Show image if available
+                    if (report['imagePath'] != null) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: AppColors.surfaceVariant,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: File(report['imagePath']).existsSync()
+                              ? Image.file(
+                            File(report['imagePath']),
+                            fit: BoxFit.cover,
+                          )
+                              : Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceVariant,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image_outlined,
+                                    color: AppColors.textTertiary,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Image not available',
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 24),
 
                     // Details
@@ -371,6 +582,7 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     _buildDetailRow('Priority', report['priority']),
                     _buildDetailRow('Assigned To', report['assignedTo']),
                     _buildDetailRow('Estimated Time', report['estimatedTime']),
+                    _buildDetailRow('Submitted', report['date']),
 
                     const SizedBox(height: 24),
 
@@ -396,24 +608,63 @@ class _MyReportsPageState extends State<MyReportsPage> with SingleTickerProvider
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              // TODO: Implement edit functionality
-                            },
-                            icon: const Icon(Icons.edit_outlined),
-                            label: const Text('Edit'),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.5),
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                // TODO: Implement track functionality
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tracking feature coming soon!'),
+                                    backgroundColor: AppColors.info,
+                                  ),
+                                );
+                              },
+                              icon: Icon(
+                                Icons.track_changes_outlined,
+                                color: AppColors.primary,
+                              ),
+                              label: Text(
+                                'Track',
+                                style: TextStyle(color: AppColors.primary),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              // TODO: Implement share functionality
-                            },
-                            icon: const Icon(Icons.share_outlined),
-                            label: const Text('Share'),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: AppColors.primaryGradient,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                // TODO: Implement share functionality
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Share feature coming soon!'),
+                                    backgroundColor: AppColors.info,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.share_outlined,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'Share',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
                           ),
                         ),
                       ],

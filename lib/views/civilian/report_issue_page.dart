@@ -8,6 +8,18 @@ import '../../utils/app_text_styles.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+class ReportManager {
+  static final List<Map<String, dynamic>> _reports = [];
+
+  static void addReport(Map<String, dynamic> report) {
+    _reports.add(report);
+  }
+
+  static List<Map<String, dynamic>> getReports() {
+    return List.from(_reports);
+  }
+}
+
 class ReportIssuePage extends StatefulWidget {
   const ReportIssuePage({Key? key}) : super(key: key);
 
@@ -26,8 +38,8 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
   String? _selectedService;
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
+  bool _isGettingLocation = false;
 
-  // Updated API URL - make sure this matches your backend URL
   static const String API_BASE_URL = 'https://ue-backend.onrender.com';
 
   final List<String> _categories = [
@@ -71,6 +83,40 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
     super.dispose();
   }
 
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isGettingLocation = true;
+    });
+
+    try {
+      // Simulate getting location (replace with actual location service)
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Mock location data - replace with actual GPS coordinates
+      setState(() {
+        _locationController.text = "346 Rajeev nagar C-sector, Bhopal, MP 462022";
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location updated successfully!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error getting location: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isGettingLocation = false;
+      });
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final picker = ImagePicker();
@@ -85,7 +131,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         setState(() {
           _selectedImage = File(image.path);
           _isAnalyzing = true;
-          // Reset previous results
           _aiDescription = null;
           _issueCategory = null;
         });
@@ -93,7 +138,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         await _analyzeImage();
       }
     } catch (e) {
-      print("Error picking image: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error selecting image: $e'),
@@ -106,42 +150,26 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
   Future<void> _analyzeImage() async {
     if (_selectedImage == null) return;
 
-    print("Image selected: ${_selectedImage!.path}");
-
     setState(() {
       _isAnalyzing = true;
     });
 
     try {
-      // First check if the backend is reachable
-      print("Checking backend health...");
       final healthResponse = await http.get(
         Uri.parse('$API_BASE_URL/health'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       ).timeout(Duration(seconds: 10));
-
-      print("Health check status: ${healthResponse.statusCode}");
-      print("Health check body: ${healthResponse.body}");
 
       if (healthResponse.statusCode != 200) {
         throw Exception('Backend server is not reachable');
       }
-
-      print("Sending image to API...");
 
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$API_BASE_URL/report_civic_issue'),
       );
 
-      // Add headers
-      request.headers.addAll({
-        'Accept': 'application/json',
-      });
-
-      // Add the image file
+      request.headers.addAll({'Accept': 'application/json'});
       request.files.add(
         await http.MultipartFile.fromPath(
           'image',
@@ -150,28 +178,17 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         ),
       );
 
-      print("Request headers: ${request.headers}");
-      print("Request files: ${request.files.map((f) => f.filename)}");
-
-      // Send request with timeout
       var streamedResponse = await request.send().timeout(Duration(seconds: 30));
       var response = await http.Response.fromStream(streamedResponse);
 
-      print("API response status: ${response.statusCode}");
-      print("API response headers: ${response.headers}");
-      print("API response body: ${response.body}");
-
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        print("Parsed JSON: $jsonResponse");
 
-        // Handle the updated response format from your backend
         if (jsonResponse['success'] == true) {
           if (jsonResponse['issues_detected'] == true &&
               jsonResponse['issues'] != null &&
               jsonResponse['issues'].isNotEmpty) {
 
-            // Extract first issue for display
             final firstIssue = jsonResponse['issues'][0];
 
             setState(() {
@@ -179,7 +196,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
               _issueCategory = _mapIssueTypeToCategory(firstIssue['category'] ?? firstIssue['type'] ?? 'Other');
             });
           } else {
-            // No issues detected
             setState(() {
               _aiDescription = null;
               _issueCategory = null;
@@ -196,16 +212,10 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         } else {
           throw Exception(jsonResponse['message'] ?? 'Analysis failed');
         }
-      } else if (response.statusCode == 502) {
-        throw Exception('Backend server error (502). Please try again later.');
-      } else if (response.statusCode == 400) {
-        final errorData = json.decode(response.body);
-        throw Exception(errorData['message'] ?? 'Invalid request');
       } else {
         throw Exception('Server error (${response.statusCode}). Please try again.');
       }
     } catch (e) {
-      print("Error analyzing image: $e");
       setState(() {
         _aiDescription = null;
         _issueCategory = null;
@@ -217,8 +227,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         errorMessage = 'Backend server is temporarily unavailable. Please try again later.';
       } else if (e.toString().contains('timeout')) {
         errorMessage = 'Request timed out. Please check your internet connection and try again.';
-      } else if (e.toString().contains('not reachable')) {
-        errorMessage = 'Cannot connect to the server. Please check your internet connection.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -235,7 +243,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
     }
   }
 
-  // Helper method to map backend issue types to frontend categories
   String _mapIssueTypeToCategory(String issueType) {
     switch (issueType.toLowerCase()) {
       case 'pothole':
@@ -269,6 +276,28 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
 
       await Future.delayed(const Duration(seconds: 2));
 
+      // Create report object
+      final report = {
+        'id': '#UR${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
+        'title': _aiDescription ?? 'Issue Report',
+        'category': _issueCategory ?? 'Other',
+        'location': _locationController.text.trim(),
+        'date': 'Just now',
+        'status': 'Submitted',
+        'statusColor': AppColors.info,
+        'priority': 'Medium',
+        'description': _descriptionController.text.isNotEmpty
+            ? _descriptionController.text.trim()
+            : _aiDescription ?? 'No description provided',
+        'assignedTo': _selectedService!,
+        'estimatedTime': 'Processing',
+        'imagePath': _selectedImage?.path,
+        'submittedAt': DateTime.now().toIso8601String(),
+      };
+
+      // Add to local storage
+      ReportManager.addReport(report);
+
       setState(() {
         _isSubmitting = false;
       });
@@ -281,9 +310,8 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         ),
       );
 
-      Navigator.pop(context);
+      Navigator.pop(context, true); // Return true to indicate success
     } else {
-      // Show validation errors
       String errorMessage = '';
       if (_selectedImage == null) {
         errorMessage = 'Please select an image';
@@ -305,12 +333,19 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Report Issue'),
+        title: Text(
+          'Report Issue',
+          style: AppTextStyles.heading2.copyWith(color: AppColors.textPrimary),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -357,6 +392,83 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
     );
   }
 
+  Widget _buildLocationField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Location',
+          style: AppTextStyles.subtitle1.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: TextFormField(
+            controller: _locationController,
+            style: AppTextStyles.bodyLarge.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter the location';
+              }
+              return null;
+            },
+            decoration: InputDecoration(
+              hintText: 'Enter location or address',
+              hintStyle: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textTertiary,
+              ),
+              prefixIcon: const Icon(
+                Icons.location_on_rounded,
+                color: AppColors.primary,
+              ),
+              suffixIcon: _isGettingLocation
+                  ? Container(
+                width: 20,
+                height: 20,
+                margin: const EdgeInsets.all(14),
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+              )
+                  : IconButton(
+                icon: const Icon(
+                  Icons.my_location_rounded,
+                  color: AppColors.primary,
+                ),
+                onPressed: _getCurrentLocation,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+        ),
+      ],
+    ).animate()
+        .fadeIn(delay: 600.ms, duration: 600.ms);
+  }
+
+  // Keep all other existing methods unchanged...
   Widget _buildCameraSection() {
     return Container(
       width: double.infinity,
@@ -661,74 +773,6 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         .fadeIn(delay: 400.ms, duration: 600.ms);
   }
 
-  Widget _buildLocationField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Location',
-          style: AppTextStyles.subtitle1.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: TextFormField(
-            controller: _locationController,
-            style: AppTextStyles.bodyLarge.copyWith(
-              color: AppColors.textPrimary,
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter the location';
-              }
-              return null;
-            },
-            decoration: InputDecoration(
-              hintText: 'Enter location or address',
-              hintStyle: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textTertiary,
-              ),
-              prefixIcon: const Icon(
-                Icons.location_on_rounded,
-                color: AppColors.primary,
-              ),
-              suffixIcon: IconButton(
-                icon: const Icon(
-                  Icons.my_location_rounded,
-                  color: AppColors.primary,
-                ),
-                onPressed: () {
-                  _locationController.text = "Current Location";
-                },
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              contentPadding: const EdgeInsets.all(16),
-            ),
-          ),
-        ),
-      ],
-    ).animate()
-        .fadeIn(delay: 600.ms, duration: 600.ms);
-  }
-
   Widget _buildServiceSelection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -866,6 +910,7 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
