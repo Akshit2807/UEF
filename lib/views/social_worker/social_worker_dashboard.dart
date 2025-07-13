@@ -348,7 +348,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -465,7 +465,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -628,7 +628,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
@@ -788,7 +788,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -889,7 +889,6 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         behavior: SnackBarBehavior.floating,
       ),
     );
-    // TODO: Implement accept logic
   }
 
   void _declineRequest(String requestId) {
@@ -900,7 +899,6 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         behavior: SnackBarBehavior.floating,
       ),
     );
-    // TODO: Implement decline logic
   }
 
   void _showAnalytics() {
@@ -921,6 +919,10 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -928,7 +930,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: AppColors.textTertiary.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1062,6 +1064,10 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
           builder: (context, scrollController) {
             return Container(
               padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
               child: SingleChildScrollView(
                 controller: scrollController,
                 child: Column(
@@ -1073,7 +1079,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: AppColors.textTertiary.withOpacity(0.3),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
