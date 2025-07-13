@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_text_styles.dart';
+import '../../services/request_manager.dart';
+import 'social_worker_community_page.dart';
+import 'social_worker_leaderboard_page.dart';
+import 'social_worker_requests_page.dart';
 
 class SocialWorkerDashboard extends StatefulWidget {
   final String category; // 'government', 'ngo', 'private'
@@ -19,48 +23,9 @@ class SocialWorkerDashboard extends StatefulWidget {
 class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late AnimationController _rotationController;
+  int _selectedIndex = 0;
 
-  final List<Map<String, dynamic>> _pendingRequests = [
-    {
-      'id': '#REQ001',
-      'title': 'Pothole Repair Needed',
-      'location': 'MG Road, Bhopal',
-      'priority': 'High',
-      'timeAgo': '2 hours ago',
-      'category': 'Road Maintenance',
-      'description': 'Large pothole causing traffic disruption',
-      'reportedBy': 'John Doe',
-      'estimatedTime': '2-3 days',
-      'budget': '₹15,000',
-      'image': null,
-    },
-    {
-      'id': '#REQ002',
-      'title': 'Garbage Collection Issue',
-      'location': 'Sector 15, Indore',
-      'priority': 'Medium',
-      'timeAgo': '5 hours ago',
-      'category': 'Waste Management',
-      'description': 'Regular pickup schedule disrupted',
-      'reportedBy': 'Jane Smith',
-      'estimatedTime': '1-2 days',
-      'budget': '₹8,000',
-      'image': null,
-    },
-    {
-      'id': '#REQ003',
-      'title': 'Street Light Repair',
-      'location': 'Civil Lines, Bhopal',
-      'priority': 'Low',
-      'timeAgo': '1 day ago',
-      'category': 'Infrastructure',
-      'description': 'Multiple street lights not functioning',
-      'reportedBy': 'Alex Johnson',
-      'estimatedTime': '3-5 days',
-      'budget': '₹12,000',
-      'image': null,
-    },
-  ];
+  late final List<Widget> _pages;
 
   @override
   void initState() {
@@ -74,6 +39,14 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
       duration: const Duration(seconds: 10),
       vsync: this,
     )..repeat();
+
+    // Initialize pages
+    _pages = [
+      const SizedBox.shrink(), // Placeholder for home page (built in build method)
+      SocialWorkerLeaderboardPage(category: widget.category),
+      SocialWorkerCommunityPage(category: widget.category),
+      SocialWorkerRequestsPage(category: widget.category),
+    ];
   }
 
   @override
@@ -129,32 +102,103 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         decoration: const BoxDecoration(
           gradient: AppColors.backgroundGradient,
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 30),
-                  _buildStatsCards(),
-                  const SizedBox(height: 30),
-                  _buildPendingRequests(),
-                  const SizedBox(height: 30),
-                  _buildLeaderboard(),
-                  const SizedBox(height: 30),
-                  _buildQuickActions(),
-                  const SizedBox(height: 100),
-                ],
+        child: _selectedIndex == 0
+            ? _buildHomePage()
+            : _pages[_selectedIndex],
+      ),
+      bottomNavigationBar: _buildBottomNavigation(),
+      floatingActionButton: _selectedIndex == 0 ? _buildFloatingActionButton() : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildBottomNavigation() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildNavItem(0, Icons.home_rounded, 'Home'),
+          _buildNavItem(1, Icons.leaderboard_rounded, 'Rankings'),
+          _buildNavItem(2, Icons.forum_rounded, 'Community'),
+          _buildNavItem(3, Icons.assignment_rounded, 'Requests'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: isSelected ? _categoryGradient : null,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : AppColors.textTertiary,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: isSelected ? Colors.white : AppColors.textTertiary,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomePage() {
+    return SafeArea(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 30),
+              _buildStatsCards(),
+              const SizedBox(height: 30),
+              _buildPendingRequests(),
+              const SizedBox(height: 30),
+              _buildLeaderboard(),
+              const SizedBox(height: 30),
+              _buildQuickActions(),
+              const SizedBox(height: 100),
+            ],
           ),
         ),
       ),
-      floatingActionButton: _buildFloatingActionButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -298,7 +342,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
             Expanded(
               child: _buildStatCard(
                 title: 'Pending',
-                value: '${_pendingRequests.length}',
+                value: '${RequestManager.pendingRequests.length}',
                 subtitle: 'Awaiting action',
                 icon: Icons.pending_actions_rounded,
                 color: AppColors.warning,
@@ -435,7 +479,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${_pendingRequests.length} New',
+                      '${RequestManager.pendingRequests.length} New',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.accent,
                         fontWeight: FontWeight.w700,
@@ -452,9 +496,9 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _pendingRequests.length,
+          itemCount: RequestManager.pendingRequests.length > 3 ? 3 : RequestManager.pendingRequests.length,
           itemBuilder: (context, index) {
-            return _buildRequestCard(_pendingRequests[index], index);
+            return _buildRequestCard(RequestManager.pendingRequests[index], index);
           },
         ),
       ],
@@ -619,9 +663,31 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Leaderboard - ${_categoryTitle}s',
-          style: AppTextStyles.heading3.copyWith(color: AppColors.textPrimary),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(
+                'Leaderboard - ${_categoryTitle}s',
+                style: AppTextStyles.heading3.copyWith(color: AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis, // Adds "..." if too long
+                maxLines: 1,
+              ),
+            ),
+
+            TextButton(
+              onPressed: () {
+                setState(() => _selectedIndex = 1);
+              },
+              child: Text(
+                'View All',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ).animate()
             .fadeIn(delay: 2700.ms, duration: 600.ms),
         const SizedBox(height: 16),
@@ -642,14 +708,14 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
             children: [
               _buildLeaderboardItem(
                 rank: 1,
-                name: 'Sarah Wilson',
+                name: _getTopPerformer(),
                 score: '98 points',
                 isCurrentUser: false,
               ),
               const SizedBox(height: 12),
               _buildLeaderboardItem(
                 rank: 2,
-                name: 'Mike Johnson',
+                name: _getSecondPerformer(),
                 score: '87 points',
                 isCurrentUser: false,
               ),
@@ -660,17 +726,6 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
                 score: '76 points',
                 isCurrentUser: true,
               ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => _showFullLeaderboard(),
-                child: Text(
-                  'View Full Leaderboard',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ],
           ),
         ).animate()
@@ -678,6 +733,32 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
             .slideY(begin: 0.3, end: 0, delay: 2900.ms, duration: 600.ms),
       ],
     );
+  }
+
+  String _getTopPerformer() {
+    switch (widget.category) {
+      case 'government':
+        return 'Bhopal Municipal Corp';
+      case 'ngo':
+        return 'Green Earth Foundation';
+      case 'private':
+        return 'BuildMax Solutions';
+      default:
+        return 'Top Performer';
+    }
+  }
+
+  String _getSecondPerformer() {
+    switch (widget.category) {
+      case 'government':
+        return 'Indore Smart City';
+      case 'ngo':
+        return 'Urban Care Society';
+      case 'private':
+        return 'QuickFix Services';
+      default:
+        return 'Second Performer';
+    }
   }
 
   Widget _buildLeaderboardItem({
@@ -850,8 +931,10 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
 
   Color _getPriorityColor(String priority) {
     switch (priority.toLowerCase()) {
-      case 'high':
+      case 'critical':
         return AppColors.error;
+      case 'high':
+        return AppColors.accent;
       case 'medium':
         return AppColors.warning;
       case 'low':
@@ -864,7 +947,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
   Widget _buildFloatingActionButton() {
     return FloatingActionButton.extended(
       onPressed: () {
-        _showRequestSearch();
+        setState(() => _selectedIndex = 3);
       },
       backgroundColor: AppColors.primary,
       elevation: 8,
@@ -873,7 +956,7 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
         color: Colors.white,
       ),
       label: Text(
-        'Find Requests',
+        'View All Requests',
         style: AppTextStyles.button.copyWith(
           fontSize: 14,
         ),
@@ -882,23 +965,45 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
   }
 
   void _acceptRequest(String requestId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Request $requestId accepted! 🎉'),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-      ),
+    final request = RequestManager.pendingRequests.firstWhere(
+          (req) => req['id'] == requestId,
+      orElse: () => {},
     );
+
+    if (request.isNotEmpty) {
+      setState(() {
+        RequestManager.acceptRequest(request);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request $requestId accepted! 🎉'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _declineRequest(String requestId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Request $requestId declined'),
-        backgroundColor: AppColors.warning,
-        behavior: SnackBarBehavior.floating,
-      ),
+    final request = RequestManager.pendingRequests.firstWhere(
+          (req) => req['id'] == requestId,
+      orElse: () => {},
     );
+
+    if (request.isNotEmpty) {
+      setState(() {
+        RequestManager.rejectRequest(request);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request $requestId declined'),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _showAnalytics() {
@@ -1026,24 +1131,6 @@ class _SocialWorkerDashboardState extends State<SocialWorkerDashboard> with Tick
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Profile page coming soon!'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showFullLeaderboard() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Full leaderboard coming soon!'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showRequestSearch() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Request search coming soon!'),
         behavior: SnackBarBehavior.floating,
       ),
     );
